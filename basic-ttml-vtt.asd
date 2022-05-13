@@ -11,4 +11,6 @@
   :serial t
   :depends-on ("alexandria" "uiop" "plump")
   :components ((:file "package")
+               (:file "ttml-entities")
+               (:file "converters")
                (:file "basic-ttml-vtt")))
