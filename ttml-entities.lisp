@@ -2,6 +2,76 @@
 
 (in-package #:basic-ttml-vtt)
 
+(defclass ttml-subs-file ()
+  ((path
+    :initform nil
+    :initarg :path
+    :accessor path
+    :documentation "The path of the TTML source file for the instance.")
+   (framerate
+    :initform nil
+    :initarg :framerate
+    :accessor framerate
+    :documentation "The frameRate declared in the tt tag.")
+   (drop-mode
+    :initform nil
+    :initarg :drop-mode
+    :accessor drop-mode
+    :documentation "The dropMode declared in the tt tag.")
+   (framerate-multiplier
+    :initform nil
+    :initarg :framerate-multiplier
+    :accessor framerate-multiplier
+    :documentation "The frameRateMultiplier declared in the tt tag.")
+   (regions
+    :initform nil
+    :initarg :regions
+    :accessor regions
+    :documentation "A hashtable with all the regions in the document, using their xml:id as key.")
+   (paragraphs
+    :initform nil
+    :initarg :paragraphs
+    :accessor paragraphs
+    :documentation "A list with all the paragraphs in the document, in the order in which they appear."))
+  (:documentation "Holds the data parsed out from a TTML document."))
+
+
+(defun make-ttml-subs-file (path)
+  "Create a `ttml-subs-file' from the file in PATH."
+  (let* ((ttml-root (plump:parse (uiop:read-file-string "Captions_en-US.ttml")))
+         (tt-tag (first (plump:get-elements-by-tag-name ttml-root "tt")))
+         (regions-ht (parse-regions ttml-root)))
+    (make-instance 'ttml-subs-file
+                   :path path
+                   :framerate (plump:get-attribute tt-tag "ttp:frameRate")
+                   :framerate-multiplier (plump:get-attribute tt-tag "ttp:frameRateMultiplier")
+                   :drop-mode (plump:get-attribute tt-tag "ttp:dropMode")
+                   :regions regions-ht
+                   :paragraphs (parse-paragraphs ttml-root regions-ht))))
+
+(defun parse-regions (ttml-root)
+  "Extract the data from TTML-ROOT into a hashtable of `region' instances.
+The keys are the regions xml:id attribute."
+  (let ((regions-ht (make-hash-table :test 'equal)))
+    (loop for region-node in (plump:get-elements-by-tag-name ttml-root "region")
+          for region = (make-region-from-node region-node)
+          for name = (xml-id region)
+          do (setf (gethash name regions-ht) region)
+          finally (return regions-ht))))
+
+(defun parse-paragraphs (ttml-root regions-ht)
+  "Extract the data from TTML-ROOT into a vector of `paragraph' instances.
+REGIONS-HT is used to assign the correct `region' on each instance. "
+  ;; in this case order matters, so we'll use child-elements instead of getting
+  ;; all elements by tag (which is unordered, although testing shows it is
+  ;; inverse order, i assume i can't rely on that)
+  (loop for paragraph-node across (plump:child-elements
+                                   ;; TODO: my particular inputs have only one div, that is not
+                                   ;; always the case
+                                   (first (plump:get-elements-by-tag-name ttml-root "div")))
+        for referenced-region = (gethash (plump:get-attribute paragraph-node "region") regions-ht)
+        collect (make-paragraph-from-node paragraph-node referenced-region)))
+
 (defclass region ()
   ((xml-id
     :initform nil

@@ -35,19 +35,17 @@
 
 (defmethod to-vtt-string ((entity paragraph))
   "Return a VTT cue (as string) from a `paragraph' ENTITY."
-  (let ((cue-text ))
-    (format nil "~a --> ~a align:start line:~a position:~a~%~a"
-            ;; TODO: reminder, the time conversions need adjustment
-            (car (begin-end entity))
-            (cdr (begin-end entity))
-            ;; TODO: which TTML property maps to what in VTT depends on the
-            ;; writingMode of the source file. I'm assuming lrtd (the default)
-            ;; line is the x coordinate of the region's origin
-            (car (origin (region entity)))
-            ;; position is the y coordinate of the region's origin
-            (cdr (origin (region entity)))
-            ;; now to build the text
-            cue-text)))
+  (format nil "~a --> ~a align:start line:~a position:~a~%~a"
+          ;; TODO: reminder, the time conversions need adjustment
+          (car (begin-end entity))
+          (cdr (begin-end entity))
+          ;; TODO: which TTML property maps to what in VTT depends on the
+          ;; writingMode of the source file. I'm assuming lrtd (the default)
+          ;; line is the x coordinate of the region's origin
+          (car (origin (region entity)))
+          ;; position is the y coordinate of the region's origin
+          (cdr (origin (region entity)))
+          (p-text-to-cue (p-texts entity))))
 
 ;; this is a good example of where I should be calling `to-vtt-string' specializing
 ;; in a new type (p-texts, in this case)
@@ -55,6 +53,10 @@
   "Convert the list P-TEXTS to single cue text."
   ;; TODO: My immediate use case is either all italics or no style, but this
   ;; conversion can be a lot more complicated
-  (let ((italic (find "italic" (mapcar #'car p-texts :test #'string-equal)))
-        (text (format nil "~{~A ~}" (mapcar #'cdr p-texts))))
-  )
+  (with-output-to-sqtring (formatted)
+    (loop for (style . text) in p-texts
+          for template = (if (string-equal style "italic")
+                             "<i>~a</i>"
+                             "~a")
+          do
+             (format formatted template text))))
