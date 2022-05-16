@@ -38,7 +38,7 @@ the minimum properties for the base conversion."))
       ;; seem like it. Might make sense if we need to convert them to
       ;; numbers down the line.
       ;; (split-string (remove "%" input-string :test #'string-equal))
-      (split-string (remove "%" input-string :test #'string-equal))
+      (split-string input-string)
     (cons width height)))
 
 (defclass paragraph ()
@@ -85,7 +85,9 @@ the minimum properties for the base conversion."))
   (loop for child across (plump:children p-node)
         for tag = (tag-name-safe child)
         for text = (if (string-equal tag "br")
-                       "#\Newline"
+                       ;; see https://lispcookbook.github.io/cl-cookbook/strings.html#creating-strings
+                       ;; writing "#\Newline" results in a string that says "Newline"
+                       (make-string 1 :initial-element #\Newline)
                        (plump:text child))
         for style = (style-attrib-safe child)
         collect (cons style text)))
