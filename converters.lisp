@@ -2,31 +2,6 @@
 
 (in-package #:basic-ttml-vtt)
 
-;; (defclass paragraph ()
-;;   ((style
-;;     :initform nil
-;;     :initarg :style
-;;     :accessor style
-;;     :documentation "p tag syle, as a string (for the time being).")
-;;    (region
-;;     :initform nil
-;;     :initarg :region
-;;     :accessor region
-;;     :documentation "The `region' that this paragraph is associated to.")
-;;    (begin-end
-;;     :initform nil
-;;     :initarg :begin-end
-;;     :accessor begin-end
-;;     :documentation "A cons cell (begin . end) both as strings. The conversion ")
-;;    ;; TODO: this is OK in my particularly limited case but really I should have yet another
-;;    ;; structure here for span-with-font-style & then text
-;;    (p-texts
-;;     :initform ""
-;;     :initarg :p-texts
-;;     :accessor p-texts
-;;     :documentation "Each line within <p></p>, in a list of cons (style . text). Style can be nil."))
-;;   (:documentation "A <p> or paragraph tag. One of these maps to a sub to display in the source file."))
-
 
 ;; This will make more sense when (if?) I convert the cons cells and p-text list
 ;; to proper classes, in that case the conversion will more tidy.
@@ -47,13 +22,13 @@
           (cdr (origin (region entity)))
           (p-text-to-cue (p-texts entity))))
 
-;; this is a good example of where I should be calling `to-vtt-string' specializing
+;; A good example of where I should be calling `to-vtt-string' specializing
 ;; in a new type (p-texts, in this case)
 (defun p-text-to-cue (p-texts)
   "Convert the list P-TEXTS to single cue text."
   ;; TODO: My immediate use case is either all italics or no style, but this
   ;; conversion can be a lot more complicated
-  (with-output-to-sqtring (formatted)
+  (with-output-to-string (formatted)
     (loop for (style . text) in p-texts
           for template = (if (string-equal style "italic")
                              "<i>~a</i>"
