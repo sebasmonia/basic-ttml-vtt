@@ -9,7 +9,7 @@
     :accessor path
     :documentation "The path of the TTML source file for the instance.")
    (framerate
-    :initform nil
+    :initform 0
     :initarg :framerate
     :accessor framerate
     :documentation "The frameRate declared in the tt tag.")
@@ -19,7 +19,7 @@
     :accessor drop-mode
     :documentation "The dropMode declared in the tt tag.")
    (framerate-multiplier
-    :initform nil
+    :initform 0
     :initarg :framerate-multiplier
     :accessor framerate-multiplier
     :documentation "The frameRateMultiplier declared in the tt tag.")
@@ -40,14 +40,24 @@
   "Create a `ttml-subs-file' from the file in PATH."
   (let* ((ttml-root (plump:parse (uiop:read-file-string "Captions_en-US.ttml")))
          (tt-tag (first (plump:get-elements-by-tag-name ttml-root "tt")))
-         (regions-ht (parse-regions ttml-root)))
+         (regions-ht (parse-regions ttml-root))
+         (framerate (parse-integer (plump:get-attribute tt-tag "ttp:frameRate")))
+         (framerate-multiplier-value (uiop:split-string (plump:get-attribute
+                                                         tt-tag
+                                                         "ttp:frameRateMultiplier")))
+         (framerate-multiplier (destructuring-bind (num denom) framerate-multiplier-value
+                                 (/ (parse-integer num) (parse-integer denom))))
+         (drop-mode (plump:get-attribute tt-tag "ttp:dropMode")))
     (make-instance 'ttml-subs-file
                    :path path
-                   :framerate (plump:get-attribute tt-tag "ttp:frameRate")
-                   :framerate-multiplier (plump:get-attribute tt-tag "ttp:frameRateMultiplier")
-                   :drop-mode (plump:get-attribute tt-tag "ttp:dropMode")
+                   :framerate framerate
+                   :framerate-multiplier framerate-multiplier
+                   :drop-mode drop-mode
                    :regions regions-ht
-                   :paragraphs (parse-paragraphs ttml-root regions-ht))))
+                   :paragraphs (parse-paragraphs ttml-root regions-ht
+                                                 framerate
+                                                 framerate-multiplier
+                                                 drop-mode))))
 
 (defun parse-regions (ttml-root)
   "Extract the data from TTML-ROOT into a hashtable of `region' instances.
@@ -59,18 +69,24 @@ The keys are the regions xml:id attribute."
           do (setf (gethash name regions-ht) region)
           finally (return regions-ht))))
 
-(defun parse-paragraphs (ttml-root regions-ht)
+(defun parse-paragraphs (ttml-root regions-ht framerate framerate-multiplier drop-mode)
   "Extract the data from TTML-ROOT into a vector of `paragraph' instances.
-REGIONS-HT is used to assign the correct `region' on each instance. "
+REGIONS-HT is used to assign the correct `region' on each instance.
+FRAMERATE, FRAMERATE-MULTIPLIER and DROP-MODe are needed when converting the paragraph to other
+formats."
   ;; in this case order matters, so we'll use child-elements instead of getting
   ;; all elements by tag (which is unordered, although testing shows it is
-  ;; inverse order, i assume i can't rely on that)
+  ;; inverse order, I assume I can't rely on that)
   (loop for paragraph-node across (plump:child-elements
                                    ;; TODO: my particular inputs have only one div, that is not
                                    ;; always the case
                                    (first (plump:get-elements-by-tag-name ttml-root "div")))
         for referenced-region = (gethash (plump:get-attribute paragraph-node "region") regions-ht)
-        collect (make-paragraph-from-node paragraph-node referenced-region)))
+        collect (make-paragraph-from-node paragraph-node
+                                          referenced-region
+                                          framerate
+                                          framerate-multiplier
+                                          drop-mode)))
 
 (defclass region ()
   ((xml-id
@@ -122,6 +138,21 @@ the minimum properties for the base conversion."))
     :initarg :region
     :accessor region
     :documentation "The `region' that this paragraph is associated to.")
+   (framerate
+    :initform nil
+    :initarg :framerate
+    :accessor framerate
+    :documentation "The frameRate declared in the `ttml-subs-file' this p tag belongs to.")
+   (drop-mode
+    :initform nil
+    :initarg :drop-mode
+    :accessor drop-mode
+    :documentation "The dropMode declared in the `ttml-subs-file' this p tag belongs to.")
+   (framerate-multiplier
+    :initform nil
+    :initarg :framerate-multiplier
+    :accessor framerate-multiplier
+    :documentation "The frameRateMultiplier declared in the `ttml-subs-file' this p tag belongs to.")
    (begin-end
     :initform nil
     :initarg :begin-end
@@ -136,8 +167,10 @@ the minimum properties for the base conversion."))
     :documentation "Each line within <p></p>, in a list of cons (style . text). Style can be nil."))
   (:documentation "A <p> or paragraph tag. One of these maps to a sub to display in the source file."))
 
-(defun make-paragraph-from-node (p-node region)
-  "Create a `paragraph' instance from P-NODE, associated to REGION."
+(defun make-paragraph-from-node (p-node region framerate framerate-multiplier drop-mode)
+  "Create a `paragraph' instance from P-NODE, associated to REGION.
+FRAMERATE, FRAMERATE-MULTIPLIER and DROP-MODe are needed when converting the paragraph to other
+formats."
   (let ((style (plump:get-attribute p-node "style"))
         (begin (plump:get-attribute p-node "begin"))
         (end (plump:get-attribute p-node "end"))
@@ -146,6 +179,9 @@ the minimum properties for the base conversion."))
     ;; rather than copied literally
     (make-instance 'paragraph
                    :style style
+                   :framerate framerate
+                   :framerate-multiplier framerate-multiplier
+                   :drop-mode drop-mode
                    :begin-end (cons begin end)
                    :region region
                    :p-texts p-texts)))
