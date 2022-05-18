@@ -12,7 +12,7 @@
   "Write a VTT file out of TTML-SUBS-FILE, in the same location."
   (let* ((input-pathname (uiop:truename* (path entity)))
          (output-pathname (make-pathname :type "vtt" :defaults input-pathname)))
-    (with-open-file (out output-pathname :direction :output)
+    (with-open-file (out output-pathname :direction :output :external-format :utf-8)
       (loop for p in (paragraphs entity)
             do
                (write-sequence (to-vtt-format p) out)))))
@@ -20,7 +20,7 @@
 ;; TODO: need to link back the source file at all times...how...?
 (defmethod to-vtt-format ((entity paragraph))
   "Return a VTT cue (as string) from a `paragraph' ENTITY."
-  (format nil "~a --> ~a align:start line:~a position:~a~%~a"
+  (format nil "~a --> ~a align:start line:~a position:~a~%~a~%~%"
           (adjust-time-frames-to-millis (car (begin-end entity))
                                         (framerate entity)
                                         (framerate-multiplier entity))
@@ -33,9 +33,7 @@
           (car (origin (region entity)))
           ;; position is the y coordinate of the region's origin
           (cdr (origin (region entity)))
-          ;; CONTINUE FROM HERE
-          ;; add an extra new line between cues
-          (p-text-to-cue (format nil "~a~%" (p-texts entity)))))
+          (p-text-to-cue (p-texts entity))))
 
 (defun adjust-time-frames-to-millis (timecode framerate framerate-multiplier)
   "Adjust TIMECODE from timestamp:frames to timestamp.millis.
@@ -59,7 +57,7 @@ FRAMERATE and FRAMERATE-MULTIPLIER come from the source TTML file."
   (with-output-to-string (formatted)
     (loop for (style . text) in p-texts
           for template = (if (string-equal style "italic")
-                             "<i>~a</i>~%"
-                             "~a~%")
+                             "<i>~a</i>"
+                             "~a")
           do
              (format formatted template text))))
