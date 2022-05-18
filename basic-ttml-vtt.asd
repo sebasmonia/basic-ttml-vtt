@@ -12,5 +12,5 @@
   :depends-on ("alexandria" "uiop" "plump")
   :components ((:file "package")
                (:file "ttml-entities")
-               (:file "converters")
+               (:file "vtt-converter")
                (:file "basic-ttml-vtt")))

@@ -9,7 +9,7 @@
             (:export
              #:convert
              )
-            ;; I already dislike this nickname, and haven't even used it
+            ;; I am not sold on this package nickname
             (:nicknames "btv" :btv))
 
 (in-package #:basic-ttml-vtt)
