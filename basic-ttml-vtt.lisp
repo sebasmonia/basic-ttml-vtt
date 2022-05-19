@@ -5,17 +5,9 @@
 (defun test  ()
   (convert "Captions_en-US.ttml"))
 
-;; (defun convert (input-ttml &optional output-vtt)
-;;   "Convert INPUT-TTML to OUTPUT-VTT.
-;; If the output filename is not provided, only the extension is changed."
-;;   ;; reading the whole file is not perfect but I don't expect a subs file to cause an OOM...
-;;   (let* ((input-pathname (uiop:truename* input-ttml))
-;;          (output-pathname (if output-vtt
-;;                               (uiop:truename* output-vtt)
-;;                               (make-pathname :type "vtt" :defaults input-pathname)))
-;;          (source-ttml (make-ttml-subs-file input-ttml)))
-;;     (write-vtt-file source-ttml)))
-
+(defun convert-to-vtt (input-ttml)
+  "Convert INPUT-TTML to a VTT file of the same name, in the same directory."
+  (to-vtt-format (make-ttml-subs-file input-ttml)))
 
 ;;;; deflex.lisp -- Define "global lexical variables" in Common Lisp.
 ;;; Copyright (c) 2003-2007, 2011 Rob Warnock <rpw3@rpw3.org>.

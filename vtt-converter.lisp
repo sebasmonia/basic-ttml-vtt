@@ -12,10 +12,13 @@
   "Write a VTT file out of TTML-SUBS-FILE, in the same location."
   (let* ((input-pathname (uiop:truename* (path entity)))
          (output-pathname (make-pathname :type "vtt" :defaults input-pathname)))
-    (with-open-file (out output-pathname :direction :output :external-format :utf-8)
+    (with-open-file (out output-pathname :direction :output :external-format '(:utf-8 )
+                                         :if-exists :supersede)
+      (write-sequence (format nil "WEBVTT~%~%") out)
       (loop for p in (paragraphs entity)
             do
-               (write-sequence (to-vtt-format p) out)))))
+               (write-sequence (to-vtt-format p) out)))
+    output-pathname))
 
 ;; TODO: need to link back the source file at all times...how...?
 (defmethod to-vtt-format ((entity paragraph))
@@ -41,11 +44,11 @@ FRAMERATE and FRAMERATE-MULTIPLIER come from the source TTML file."
   ;; TODO: this conversion is good enough for the particular case I'm working on now, but a full
   ;; converter needs to account for a bigger variety of source TTML formats
   (destructuring-bind (hours minutes seconds frames) (uiop:split-string timecode :separator ":")
-    (format nil "~a:~a:~a.~a"
+    (format nil "~a:~a:~a~1,3f"
             hours
             minutes
             seconds
-            (floor (* (read-from-string frames) (* framerate framerate-multiplier))))))
+            (/ (read-from-string frames) (* framerate framerate-multiplier)))))
 
     
 ;; a good example of where i should be calling `to-vtt-string' specializing
