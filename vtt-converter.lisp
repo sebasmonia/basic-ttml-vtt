@@ -24,7 +24,7 @@
 
 (defmethod to-vtt-format ((entity paragraph))
   "Return a VTT cue (as string) from a `paragraph' ENTITY."
-  (format nil "~a --> ~a align:start line:~a position:~a~%~a~%~%"
+  (format nil "~a --> ~a line:~a position:~a~%~a~%~%"
           (adjust-time+frame-to-millis (car (begin-end entity))
                                        (framerate entity)
                                        (framerate-multiplier entity))
