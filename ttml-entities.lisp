@@ -105,7 +105,7 @@ formats."
     :accessor extent
     :documentation "Region extent, stored in a cons cell (width . height) for the region area. "))
    (:documentation "Holds the data parsed out from a TTML region. As of the initial version of this code, it only has
-the minimum properties for the base conversion."))
+the minimum properties for a single use case of VTT conversion."))
 
 (defun make-region-from-node (region-node)
   "Create a `region' instance from a Plump-parsed REGION-NODE."
@@ -160,11 +160,11 @@ the minimum properties for the base conversion."))
     :documentation "A cons cell (begin . end) both as strings. The conversion ")
    ;; TODO: this is OK in my particularly limited case but really I should have yet another
    ;; structure here for span-with-font-style & then text
-   (p-texts
-    :initform ""
-    :initarg :p-texts
-    :accessor p-texts
-    :documentation "Each line within <p></p>, in a list of cons (style . text). Style can be nil."))
+   (p-children
+    :initform nil
+    :initarg :p-children
+    :accessor p-children
+    :documentation "Each line within <p></p>, in a list of `p-tag-child' objects."))
   (:documentation "A <p> or paragraph tag. One of these maps to a sub to display in the source file."))
 
 (defun make-paragraph-from-node (p-node region framerate framerate-multiplier drop-mode)
@@ -174,7 +174,8 @@ formats."
   (let ((style (plump:get-attribute p-node "style"))
         (begin (plump:get-attribute p-node "begin"))
         (end (plump:get-attribute p-node "end"))
-        (p-texts (extract-p-texts p-node)))
+        (p-children (loop for child across (plump:children p-node)
+                          collect (make-p-tag-child-from-plump-node child))))
     ;; TODO: begin-end should be adjusted via framerate + framerateMultiplier
     ;; rather than copied literally
     (make-instance 'paragraph
@@ -184,27 +185,39 @@ formats."
                    :drop-mode drop-mode
                    :begin-end (cons begin end)
                    :region region
-                   :p-texts p-texts)))
+                   :p-children p-children)))
 
-(defun extract-p-texts (p-node)
-  "Convert text in P-NODE to a list of pairs as expected in a `paragraph' p-texts property."
-  (loop for child across (plump:children p-node)
-        for tag = (tag-name-safe child)
-        for text = (if (string-equal tag "br")
-                       ;; see https://lispcookbook.github.io/cl-cookbook/strings.html#creating-strings
-                       ;; writing "#\Newline" results in a string that says "Newline"
-                       (make-string 1 :initial-element #\Newline)
-                       (plump:text child))
-        for style = (style-attrib-safe child)
-        collect (cons style text)))
+(defclass p-tag-child ()
+  ((tag-name
+    :initform "text"
+    :initarg :tag-name
+    :accessor tag-name
+    :documentation "The actual tag name. The default value means no sub-tag: an unformatted text node.")
+   (tag-style
+    :initform nil
+    :initarg :tag-style
+    :accessor tag-style
+    :documentation "Text style for a <p> child tag/node. For the initial version only \"normal\" and \"italic\" are supported. nil is used if the property is not relevant or it is a text-only node.")
+   (tag-text
+    :initform ""
+    :initarg :tag-text
+    :accessor tag-text
+    :documentation "The text contained in child tag/text node within a <p> tag."))
+  (:documentation "Each child node (tag or text-only) within a <p> tag."))
 
-(defun tag-name-safe (node)
-  "Return the tag name of NODE, or nil if it's a text node."
-  (unless (plump:text-node-p node)
-    (plump:tag-name node)))
-
-(defun style-attrib-safe (node)
-  "Return the \"style\" attribute of NODE, if present, or nil.
-This handles text nodes correctly (not querying attributes)."
-  (unless (plump:text-node-p node)
-    (plump:get-attribute node "tts:fontStyle")))
+(defun make-p-tag-child-from-plump-node (plump-node)
+  "Create a `p-tag-child' from PLUMP-NODE, which must be a child of a <p> tag."
+  (let* ((tag (if (plump:text-node-p plump-node)
+                  "text"
+                  (plump:tag-name plump-node)))
+         (text (if (string-equal tag "br")
+                   ;; see https://lispcookbook.github.io/cl-cookbook/strings.html#creating-strings
+                   ;; writing "#\Newline" results in a string that says "Newline"
+                   (make-string 1 :initial-element #\Newline)
+                   (plump:text plump-node)))
+         (style (unless (plump:text-node-p plump-node)
+                  (plump:get-attribute plump-node "tts:fontStyle"))))
+    (make-instance 'p-tag-child
+                   :tag-style style
+                   :tag-name tag
+                   :tag-text text)))
