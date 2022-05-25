@@ -23,6 +23,11 @@
     :initarg :framerate-multiplier
     :accessor framerate-multiplier
     :documentation "The frameRateMultiplier declared in the tt tag.")
+   (styles
+    :initform nil
+    :initarg :styles
+    :accessor styles
+    :documentation "A hashtable with all the styles in the document, using their xml:id as key.")
    (regions
     :initform nil
     :initarg :regions
@@ -35,11 +40,11 @@
     :documentation "A list with all the paragraphs in the document, in the order in which they appear."))
   (:documentation "Holds the data parsed out from a TTML document."))
 
-
 (defun make-ttml-subs-file (path)
   "Create a `ttml-subs-file' from the file in PATH."
-  (let* ((ttml-root (plump:parse (uiop:read-file-string "Captions_en-US.ttml")))
+  (let* ((ttml-root (plump:parse (uiop:read-file-string path)))
          (tt-tag (first (plump:get-elements-by-tag-name ttml-root "tt")))
+         (styles-ht (parse-styles ttml-root))
          (regions-ht (parse-regions ttml-root))
          (framerate (parse-integer (plump:get-attribute tt-tag "ttp:frameRate")))
          (framerate-multiplier-value (uiop:split-string (plump:get-attribute
@@ -53,11 +58,24 @@
                    :framerate framerate
                    :framerate-multiplier framerate-multiplier
                    :drop-mode drop-mode
+                   :styles styles-ht
                    :regions regions-ht
-                   :paragraphs (parse-paragraphs ttml-root regions-ht
+                   :paragraphs (parse-paragraphs ttml-root
+                                                 styles-ht
+                                                 regions-ht
                                                  framerate
                                                  framerate-multiplier
                                                  drop-mode))))
+
+(defun parse-styles (ttml-root)
+  "Extract the data from TTML-ROOT into a hashtable of `style' instances.
+The keys are the styles xml:id attribute."
+  (let ((styles-ht (make-hash-table :test 'equal)))
+    (loop for style-node in (plump:get-elements-by-tag-name ttml-root "style")
+          for style = (make-style-from-node style-node)
+          for name = (xml-id style)
+          do (setf (gethash name styles-ht) style)
+          finally (return styles-ht))))
 
 (defun parse-regions (ttml-root)
   "Extract the data from TTML-ROOT into a hashtable of `region' instances.
@@ -69,9 +87,9 @@ The keys are the regions xml:id attribute."
           do (setf (gethash name regions-ht) region)
           finally (return regions-ht))))
 
-(defun parse-paragraphs (ttml-root regions-ht framerate framerate-multiplier drop-mode)
+(defun parse-paragraphs (ttml-root styles-ht regions-ht framerate framerate-multiplier drop-mode)
   "Extract the data from TTML-ROOT into a vector of `paragraph' instances.
-REGIONS-HT is used to assign the correct `region' on each instance.
+STYLES-HT and REGIONS-HT are used to assign the correct `style' and `region' on each instance.
 FRAMERATE, FRAMERATE-MULTIPLIER and DROP-MODe are needed when converting the paragraph to other
 formats."
   ;; in this case order matters, so we'll use child-elements instead of getting
@@ -81,8 +99,10 @@ formats."
                                    ;; TODO: my particular inputs have only one div, that is not
                                    ;; always the case
                                    (first (plump:get-elements-by-tag-name ttml-root "div")))
+        for referenced-style = (gethash (plump:get-attribute paragraph-node "style") styles-ht)
         for referenced-region = (gethash (plump:get-attribute paragraph-node "region") regions-ht)
         collect (make-paragraph-from-node paragraph-node
+                                          referenced-style
                                           referenced-region
                                           framerate
                                           framerate-multiplier
@@ -127,12 +147,32 @@ the minimum properties for a single use case of VTT conversion."))
       (split-string input-string)
     (cons width height)))
 
+(defclass style ()
+  ((xml-id
+    :initform nil
+    :initarg :xml-id
+    :accessor xml-id
+    :documentation "Style xml:id attribute.")
+   (text-align
+    :initform nil
+    :initarg :text-align
+    :accessor text-align
+    :documentation "Style text align, any of left, center, right, start, end or justify."))
+  (:documentation "Holds the data parsed out from a TTML style node. As of the initial version of
+this code, it only has the minimum properties for a single use case of VTT conversion."))
+
+(defun make-style-from-node (style-node)
+  "Create a `style' instance from a Plump-parsed STYLE-NODE."
+  (make-instance 'style
+                 :xml-id (plump:get-attribute style-node "xml:id")
+                 :text-align (plump:get-attribute style-node "tts:textAlign")))
+
 (defclass paragraph ()
   ((style
     :initform nil
     :initarg :style
     :accessor style
-    :documentation "p tag syle, as a string (for the time being).")
+    :documentation "The `style' that this paragraph is associated to.")
    (region
     :initform nil
     :initarg :region
@@ -167,9 +207,9 @@ the minimum properties for a single use case of VTT conversion."))
     :documentation "Each line within <p></p>, in a list of `p-tag-child' objects."))
   (:documentation "A <p> or paragraph tag. One of these maps to a sub to display in the source file."))
 
-(defun make-paragraph-from-node (p-node region framerate framerate-multiplier drop-mode)
-  "Create a `paragraph' instance from P-NODE, associated to REGION.
-FRAMERATE, FRAMERATE-MULTIPLIER and DROP-MODe are needed when converting the paragraph to other
+(defun make-paragraph-from-node (p-node style region framerate framerate-multiplier drop-mode)
+  "Create a `paragraph' instance from P-NODE, associated to STYLE and REGION.
+FRAMERATE, FRAMERATE-MULTIPLIER and DROP-MODE are needed when converting the paragraph to other
 formats."
   (let ((style (plump:get-attribute p-node "style"))
         (begin (plump:get-attribute p-node "begin"))

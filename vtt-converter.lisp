@@ -24,13 +24,14 @@
 
 (defmethod to-vtt-format ((entity paragraph))
   "Return a VTT cue (as string) from a `paragraph' ENTITY."
-  (format nil "~a --> ~a line:~a position:~a~%~a~%~%"
+  (format nil "~a --> ~a ~a line:~a position:~a~%~a~%~%"
           (adjust-time+frame-to-millis (car (begin-end entity))
                                        (framerate entity)
                                        (framerate-multiplier entity))
           (adjust-time+frame-to-millis (cdr (begin-end entity))
                                        (framerate entity)
                                        (framerate-multiplier entity))
+          (to-vtt-format (style entity))
           ;; TODO: which TTML property maps to what in VTT depends on the
           ;; writingMode of the source file. I'm assuming lrtd (the default)
           ;; line is the x coordinate of the region's origin
@@ -59,3 +60,11 @@ FRAMERATE and FRAMERATE-MULTIPLIER come from the source TTML file."
                   "<i>~a</i>"
                   "~a")
           (tag-text entity)))
+
+(defmethod to-vtt-format ((entity style))
+  "Convert to VTT a STYLE. As of now only the tts:textAlign is converted."
+  (let ((text-align (text-align entity)))
+    (format nil "align:~a"
+            (cond ((member text-align '("start" "left") :test #'string-equal) "start")
+                  ((member text-align '("center" "justify") :test #'string-equal) "middle")
+                  ((member text-align '("end" "right") :test #'string-equal) "end")))))
