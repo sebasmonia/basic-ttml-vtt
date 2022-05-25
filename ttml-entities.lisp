@@ -114,6 +114,11 @@ formats."
     :initarg :xml-id
     :accessor xml-id
     :documentation "Region xml:id attribute.")
+   (display-align
+    :initform nil
+    :initarg :display-align
+    :accessor display-align
+    :documentation "Property that indicates if the text should be rendered on the top or bottom of the region.")
    (origin
     :initform nil
     :initarg :origin
@@ -131,21 +136,23 @@ the minimum properties for a single use case of VTT conversion."))
   "Create a `region' instance from a Plump-parsed REGION-NODE."
   (let ((xml-id (plump:get-attribute region-node "xml:id"))
         (origin-string (plump:get-attribute region-node "tts:origin"))
-        (extent-string (plump:get-attribute region-node "tts:extent")))
+        (extent-string (plump:get-attribute region-node "tts:extent"))
+        (display-align (plump:get-attribute region-node "tts:displayAlign")))
     (make-instance 'region
                    :xml-id xml-id
+                   :display-align display-align
                    :origin (pair-of-percent-strings-to-cons origin-string)
                    :extent (pair-of-percent-strings-to-cons extent-string))))
 
 (defun pair-of-percent-strings-to-cons (input-string)
   "Translate a \"{number}% {number}%\" INPUT-STRING to cons cell."
+  ;; TODO: many things to consider if making this into a full-fledged converter:
+  ;; 1. px is a valid TTML unit, so assuming always percentage is wrong
+  ;; 2. this way of parsing numbers is vulnerable
+  ;; 3. not doing any kind of format checking (related to 2)
   (destructuring-bind (width height)
-      ;; TODO: maybe it makes sense to remove the % sign, but doesn't
-      ;; seem like it. Might make sense if we need to convert them to
-      ;; numbers down the line.
-      ;; (split-string (remove "%" input-string :test #'string-equal))
-      (split-string input-string)
-    (cons width height)))
+      (uiop:split-string (remove "%" input-string :test #'string-equal))
+    (cons (read-from-string width) (read-from-string height))))
 
 (defclass style ()
   ((xml-id
@@ -211,13 +218,10 @@ this code, it only has the minimum properties for a single use case of VTT conve
   "Create a `paragraph' instance from P-NODE, associated to STYLE and REGION.
 FRAMERATE, FRAMERATE-MULTIPLIER and DROP-MODE are needed when converting the paragraph to other
 formats."
-  (let ((style (plump:get-attribute p-node "style"))
-        (begin (plump:get-attribute p-node "begin"))
+  (let ((begin (plump:get-attribute p-node "begin"))
         (end (plump:get-attribute p-node "end"))
         (p-children (loop for child across (plump:children p-node)
                           collect (make-p-tag-child-from-plump-node child))))
-    ;; TODO: begin-end should be adjusted via framerate + framerateMultiplier
-    ;; rather than copied literally
     (make-instance 'paragraph
                    :style style
                    :framerate framerate
